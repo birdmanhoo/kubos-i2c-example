@@ -28,14 +28,6 @@
 #include "kubos-hal/i2c.h"
 #include "kubos-core/modules/klog.h"
 
-#ifdef YOTTA_CFG_SENSORS_HTU21D
-#include "kubos-core/modules/sensors/htu21d.h"
-#endif
-
-#ifdef YOTTA_CFG_SENSORS_BNO055
-#include "kubos-core/modules/sensors/bno055.h"
-#endif
-
 void task_i2c(void *p) {
     static int x = 0;
     int ret;
@@ -43,9 +35,8 @@ void task_i2c(void *p) {
 /**
  * Example of directly using the Kubos-HAL i2c interface
  */
-#if !defined(YOTTA_CFG_SENSORS_HTU21D) && !defined(YOTTA_CFG_SENSORS_BNO055)
+
     #define I2C_DEV K_I2C1
-    #define I2C_SLAVE_ADDR 0x40
 
     uint8_t cmd = 0xE3;
     uint8_t buffer[3];
@@ -57,45 +48,24 @@ void task_i2c(void *p) {
     };
     // Initialize first i2c bus with configuration
     k_i2c_init(I2C_DEV, &conf);
-    // Send single byte command to slave
-    k_i2c_write(I2C_DEV, I2C_SLAVE_ADDR, &cmd, 1);
+    
     // Processing delay
     vTaskDelay(50);
-    // Read back 3 byte response from slave
-    k_i2c_read(I2C_DEV, I2C_SLAVE_ADDR, &buffer, 3);
-
-/**
- * If any sensors are detected then we will use those instead
- */
-#else
-
-#ifdef YOTTA_CFG_SENSORS_HTU21D
-    float temp, hum;
-    htu21d_setup();
-    htu21d_reset();
-#endif
-
-#ifdef YOTTA_CFG_SENSORS_BNO055
-    bno055_setup(OPERATION_MODE_NDOF);
-    bno055_quat_data_t pos = { 0, 0, 0, 0};
-#endif
-
+    
     while (1) {
-#ifdef YOTTA_CFG_SENSORS_HTU21D
-        htu21d_read_temperature(&temp);
-        htu21d_read_humidity(&hum);
-        printf("temp - %f\r\n", temp);
-        printf("humidity - %f\r\n", hum);
-#endif
-
-#ifdef YOTTA_CFG_SENSORS_BNO055
-        bno055_get_position(&pos);
-        printf("imu - %d %d %d %d\r\n", pos.x, pos.y, pos.z, pos.w);
-#endif
+    // Signal bus event start
+    k_i2c_send_condition(I2C_DEV, K_START);
+    vTaskDelay(5000);
+    printf("Start condition sent\r\n");
+    
+    // Signal bus event stop
+    k_i2c_send_condition(I2C_DEV, K_STOP);
+    vTaskDelay(5000);
+    printf("Stop condition sent\r\n");
 
         vTaskDelay(100 / portTICK_RATE_MS);
     }
-#endif
+
 }
 
 int main(void)
